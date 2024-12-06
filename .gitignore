@@ -1,4 +1,6 @@
 .vs
+.idea/
 /obj
 /bin
 /Properties/launchSettings.json
+/Folder.DotSettings.user
