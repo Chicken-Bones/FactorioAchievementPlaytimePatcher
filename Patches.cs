@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,11 +11,11 @@ namespace FactorioAchievementPatcher
 		internal bool Apply(Span<byte> fnBytes)
 		{
 			fnBytes = fnBytes[Offset..];
-			if (!fnBytes.StartsWith(Target))
-				throw new Exception($"Failed to apply patch ({FunctionName}): Target not found at Offset");
-
 			if (fnBytes.StartsWith(Replacement))
 				return false;
+
+			if (!fnBytes.StartsWith(Target))
+				throw new Exception($"Failed to apply patch ({FunctionName}): Target not found at Offset");
 
 			Replacement.CopyTo(fnBytes);
 			return true;
@@ -54,5 +54,39 @@ namespace FactorioAchievementPatcher
 				]
 			),
 		];
+
+		public static Patch[] Linux = [
+			// AchievementStats::allowed
+			new Patch("_ZN16AchievementStats7allowedERK3Map9NamedBoolI21IsLocalAchievementTagEbb.constprop.0", Offset: 0xB7,
+				Target: [
+					0x48, 0x8B, 0x42, 0x20,                    // mov     rax, [rdx + 0x20]
+					0x48, 0x8B, 0x80, 0x60, 0x01, 0x00, 0x00,  // mov     rax, [rax + 0x160]
+					0x48, 0xD1, 0xE8,                          // shr     rax, 0x01
+					0x48, 0x3B, 0x82, 0xE8, 0x02, 0x00, 0x00   // cmp     rax, [rdx + 0x2e8]
+				],
+				Replacement: [
+					0x48, 0x8B, 0x42, 0x20,                    // mov     rax, [rdx + 0x20]
+					0x48, 0x8B, 0x80, 0x60, 0x01, 0x00, 0x00,  // mov     rax, [rax + 0x160]
+					0x48, 0x31, 0xC0,                          // xor     rax, rax
+					0x48, 0x3B, 0x82, 0xE8, 0x02, 0x00, 0x00   // cmp     rax, [rdx + 0x2e8]
+				]
+			),
+			// AchievementGui::updateInGameLongEnoughLabel
+			new Patch("_ZN14AchievementGui27updateInGameLongEnoughLabelEv", Offset: 0x1A,
+				Target: [
+					0x48, 0x8B, 0x42, 0x20,                    // mov     rax, [rdx + 0x20]
+					0x48, 0x8B, 0x80, 0x60, 0x01, 0x00, 0x00,  // mov     rax, [rax + 0x160]
+					0x48, 0xD1, 0xE8,                          // shr     rax, 0x01
+					0x48, 0x3B, 0x82, 0xE8, 0x02, 0x00, 0x00   // cmp     rax, [rdx + 0x2e8]
+				],
+				Replacement: [
+					0x48, 0x8B, 0x42, 0x20,                    // mov     rax, [rdx + 0x20]
+					0x48, 0x8B, 0x80, 0x60, 0x01, 0x00, 0x00,  // mov     rax, [rax + 0x160]
+					0x48, 0x31, 0xC0,                          // xor     rax, rax
+					0x48, 0x3B, 0x82, 0xE8, 0x02, 0x00, 0x00   // cmp     rax, [rdx + 0x2e8]
+				]
+			),
+		];
+
 	}
 }
