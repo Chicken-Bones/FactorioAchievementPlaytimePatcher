@@ -11,11 +11,11 @@ namespace FactorioAchievementPatcher
 		internal bool Apply(Span<byte> fnBytes)
 		{
 			fnBytes = fnBytes[Offset..];
-			if (!fnBytes.StartsWith(Target))
-				throw new Exception($"Failed to apply patch ({FunctionName}): Target not found at Offset");
-
 			if (fnBytes.StartsWith(Replacement))
 				return false;
+
+			if (!fnBytes.StartsWith(Target))
+				throw new Exception($"Failed to apply patch ({FunctionName}): Target not found at Offset");
 
 			Replacement.CopyTo(fnBytes);
 			return true;
