@@ -9,13 +9,13 @@ try {
 	if (!File.Exists(modulePath))
 		throw new ArgumentException($"File not found: {modulePath}");
 
-	if (Path.GetExtension(modulePath) is not ".exe")
-		throw new ArgumentException($"{Path.GetFileName(modulePath)} does not end in .exe");
-
 	var moduleBytes = File.ReadAllBytes(modulePath);
 
 	bool applied = false;
 	if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+		if (Path.GetExtension(modulePath) is not ".exe")
+			throw new ArgumentException($"{Path.GetFileName(modulePath)} does not end in .exe");
+
 		using var windowsSymHelper = new WindowsSymbolHelper(modulePath);
 
 		foreach (var patch in Patches.Windows) {
