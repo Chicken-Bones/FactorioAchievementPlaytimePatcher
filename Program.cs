@@ -1,7 +1,9 @@
-using FactorioAchievementPatcher;
+﻿using FactorioAchievementPatcher;
 using System.Runtime.InteropServices;
+using AsmResolver.PE.File;
 using ELFSharp.ELF;
 using ELFSharp.ELF.Sections;
+using SharpPdb.Native;
 
 try {
 	if (args.Length <= 0)
@@ -18,12 +20,19 @@ try {
 		if (Path.GetExtension(modulePath) is not ".exe")
 			throw new ArgumentException($"{Path.GetFileName(modulePath)} does not end in .exe");
 
-		using var windowsSymHelper = new WindowsSymbolHelper(modulePath);
+		var pdbPath = Path.Combine(Path.GetDirectoryName(modulePath)!, Path.GetFileNameWithoutExtension(modulePath) + ".pdb");
+		if (!File.Exists(pdbPath)) 
+			throw new ArgumentException($"{Path.GetFileName(modulePath)} does not have a companion .pdb file.");
+
+		var pe = PEFile.FromFile(modulePath);
+		var pdb = new PdbFileReader(pdbPath);
+
+		var text = pe.Sections.Single(e => e.Name.Equals(".text"));
 
 		foreach (var patch in Patches.Windows) {
-
-			var fnOffset = windowsSymHelper.GetFunctionOffset(patch.FunctionName);
-			var fnBytes = moduleBytes.AsSpan(start: (int)fnOffset);
+			var func = pdb.Functions.Single(e => e.Name.Equals(patch.FunctionName));
+			var fnOffset = pe.RvaToFileOffset(func.Offset + text.Rva);
+			var fnBytes = moduleBytes.AsSpan((int)fnOffset, (int)func.CodeSize);
 			if (patch.Apply(fnBytes)) {
 				Console.WriteLine($"Patched {patch.FunctionName}");
 				applied = true;
