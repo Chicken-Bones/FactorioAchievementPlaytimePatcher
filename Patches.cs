@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 
 namespace FactorioAchievementPatcher
 {
@@ -55,6 +51,10 @@ namespace FactorioAchievementPatcher
 			),
 		];
 
+		public static Dictionary<Architecture, Patch[]> WindowsPatchSets = new() {
+			[Architecture.X64] = Windows
+		};
+
 		public static Patch[] Linux = [
 			// AchievementStats::allowed
 			new Patch("_ZN16AchievementStats7allowedERK3Map9NamedBoolI21IsLocalAchievementTagEbb.constprop.0", Offset: 0xB7,
@@ -87,6 +87,10 @@ namespace FactorioAchievementPatcher
 				]
 			),
 		];
+
+		public static Dictionary<Architecture, Patch[]> LinuxPatchSets = new() {
+			[Architecture.X64] = Linux
+		};
 
 		public static Patch[] Mac_x86 = [
 			// AchievementStats::allowed
@@ -163,6 +167,17 @@ namespace FactorioAchievementPatcher
 				]
 			),
 		];
+
+		public static Dictionary<Architecture, Patch[]> MacPatchSets = new() {
+			[Architecture.X64] = Mac_x86,
+			[Architecture.Arm64] = Mac_aarch64
+		};
+
+		public static Dictionary<OSPlatform, Dictionary<Architecture, Patch[]>> PlatformPatchSets = new() {
+			[OSPlatform.Windows] = WindowsPatchSets,
+			[OSPlatform.Linux] = LinuxPatchSets,
+			[OSPlatform.OSX] = MacPatchSets,
+		};
 
 	}
 }
