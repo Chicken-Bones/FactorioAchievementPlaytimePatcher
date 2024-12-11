@@ -1,9 +1,13 @@
-﻿using FactorioAchievementPatcher;
+﻿using System.Diagnostics;
+using FactorioAchievementPatcher;
 using System.Runtime.InteropServices;
+using System.Text;
 using AsmResolver.PE.File;
 using ELFSharp.ELF;
 using ELFSharp.ELF.Sections;
+using ELFSharp.MachO;
 using SharpPdb.Native;
+using Machine = ELFSharp.MachO.Machine;
 
 try {
 	if (args.Length <= 0)
@@ -61,6 +65,38 @@ try {
 				applied = true;
 			} else {
 				Console.WriteLine($"Already patched {patch.FunctionName}");
+			}
+		}
+	}
+	else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+		IReadOnlyList<MachOWithOffset> binaries;
+		if (!MachOHelper.ReadFatMachO(moduleBytes, out binaries))
+			throw new ArgumentException($"{Path.GetFileName(modulePath)} is not a universal MatchO executable.");
+		
+		foreach (var binaryWithOffset in binaries) {
+			int binaryFileOffset = binaryWithOffset.FileOffset;
+			var binary = binaryWithOffset.Binary;
+			
+			Console.WriteLine($"Processing machine {Enum.GetName(binary.Machine.GetType(), binary.Machine)}");
+			var patches = binary.Machine switch {
+				Machine.X86_64 => Patches.Mac_x86,
+				Machine.Arm64 => Patches.Mac_aarch64,
+				_ => throw new ArgumentException($"{Path.GetFileName(modulePath)} universal MatchO executable contains unknown machine type.") 
+			};
+
+			var symTab = binary.GetCommandsOfType<SymbolTable>().Single();
+			
+			foreach (var patch in patches) {
+				var sym = symTab.Symbols.First(e => e.Name.Equals(patch.FunctionName));
+				var funcSectionOffset = (int)((ulong)sym.Value - sym.Section.Address);
+				int fileOffset = (int)(funcSectionOffset + sym.Section.Offset + binaryFileOffset);
+				var fnBytes = moduleBytes.AsSpan(fileOffset); // TODO, Length unknown, not in symbol table? local `num5` of Symbol reader is probably length, ffs.
+				if (patch.Apply(fnBytes)) {
+					Console.WriteLine($"Patched {patch.FunctionName}");
+					applied = true;
+				} else {
+					Console.WriteLine($"Already patched {patch.FunctionName}");
+				}
 			}
 		}
 	}
