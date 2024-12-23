@@ -4,10 +4,11 @@ using AsmResolver.PE.File;
 using AsmResolver.PE.File.Headers;
 using ELFSharp.ELF;
 using ELFSharp.ELF.Sections;
-using ELFSharp.MachO;
+using MachOSharp;
+using MachOSharp.Command;
+using MachOSharp.Util;
 using SharpPdb.Native;
 using ElFMachine = ELFSharp.ELF.Machine;
-using MachOMachine = ELFSharp.MachO.Machine;
 
 namespace FactorioAchievementPatcher;
 
@@ -22,8 +23,8 @@ public interface AssemblyProvider : IDisposable {
             return new LinuxAssemblyProvider(elf);
         }
 
-        if (MachOHelper.ReadFatMachO(moduleBytes, out var binaries)) {
-            return new MacosAssemblyProvider(binaries);
+        if (MachOReader.TryLoadFat(new MemoryStream(moduleBytes), out var fat, false)) {
+            return new MacosAssemblyProvider(fat);
         }
 
         throw new ArgumentException("Unknown Executable file provided.");
@@ -122,37 +123,39 @@ public sealed class LinuxAssemblyProvider : AssemblyProvider {
 
 public sealed class MacosAssemblyProvider : AssemblyProvider {
 
-    private Dictionary<Architecture, MachOWithOffset> machoBinaries;
+    private Dictionary<Architecture, MachO64> binaries;
 
-    public MacosAssemblyProvider(IReadOnlyList<MachOWithOffset> machoBinaries) {
-        this.machoBinaries = machoBinaries.ToDictionary(GetArchitecture);
+    public MacosAssemblyProvider(MachOFat fat) {
+        this.binaries = fat.Arches.ToDictionary(GetArchitecture, e => e.macho);
     }
 
     public OSPlatform Platform => OSPlatform.OSX;
 
     public IEnumerable<Architecture> Architectures() {
-        return machoBinaries.Keys;
+        return binaries.Keys;
     }
 
     public Range FunctionFileRange(Architecture arch, string fName) {
-        var (binary, binaryFileOffset) = machoBinaries[arch];
+        var macho = binaries[arch];
 
-        var symTab = binary.GetCommandsOfType<SymbolTable>().Single();
+        var sections = macho.LoadCommands.OfType<SegmentCommand64>().SelectMany(e => e.Sections).ToList();
+        var symTab = macho.LoadCommands.OfType<SymTabCommand>().Single();
 
-        var sym = symTab.Symbols.First(e => e.Name.Equals(fName));
-        var funcSectionOffset = (int)((ulong)sym.Value - sym.Section.Address);
-        int fnOffset = (int)(funcSectionOffset + sym.Section.Offset + binaryFileOffset);
-        return new Range(fnOffset, Index.End); // TODO, Length unknown, not in symbol table? local `num5` of Symbol reader is probably length, ffs.
+        var sym = symTab.Symbols.First(e => fName.Equals(e.Name));
+        var section = sections[(int)sym.SectionIndex!];
+        var funcSectionOffset = sym.Value - section.Address;
+        int fnOffset = (int)(funcSectionOffset + section.Offset + (ulong)macho.FileOffset);
+        return new Range(fnOffset, Index.End);
     }
 
     public void Dispose() {
     }
 
-    private static Architecture GetArchitecture(MachOWithOffset macho) {
-        return macho.Binary.Machine switch {
-            MachOMachine.X86_64 => Architecture.X64,
-            MachOMachine.Arm64 => Architecture.Arm64,
-            _ => throw new ArgumentException($"Unknown MachO architecture type. {Enum.GetName(typeof(MachOMachine), macho.Binary.Machine)}")
+    private static Architecture GetArchitecture(MachOFatArch arch) {
+        return arch.macho.CpuType switch {
+            CpuType.X86_64 => Architecture.X64,
+            CpuType.Arm64 => Architecture.Arm64,
+            _ => throw new ArgumentException($"Unknown MachO architecture type. {Enum.GetName(typeof(CpuType), arch.macho.CpuType)}")
         };
     }
 
