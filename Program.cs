@@ -11,15 +11,15 @@ try {
 	var moduleBytes = File.ReadAllBytes(modulePath);
 
 	bool applied = false;
-	using var patcher = Patcher.Create(modulePath, moduleBytes);
+	using var provider = AssemblyProvider.Create(modulePath, moduleBytes);
 
-	var patchSet = Patches.PlatformPatchSets[patcher.Platform];
-	foreach (var arch in patcher.Architectures()) {
-		Console.WriteLine($"Processing {patcher.Platform} {arch}");
+	var patchSet = Patches.PlatformPatchSets[provider.Platform];
+	foreach (var arch in provider.Architectures()) {
+		Console.WriteLine($"Processing {provider.Platform} {arch}");
 		var patches = patchSet[arch];
 		
 		foreach (var patch in patches) {
-			var fnBytes = moduleBytes.AsSpan(patcher.FunctionFileRange(arch, patch.FunctionName));
+			var fnBytes = moduleBytes.AsSpan(provider.FunctionFileRange(arch, patch.FunctionName));
 			if (patch.Apply(fnBytes)) {
 				Console.WriteLine($"Patched {patch.FunctionName}");
 				applied = true;

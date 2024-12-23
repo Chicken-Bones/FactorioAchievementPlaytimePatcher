@@ -11,19 +11,19 @@ using MachOMachine = ELFSharp.MachO.Machine;
 
 namespace FactorioAchievementPatcher;
 
-public interface Patcher : IDisposable {
+public interface AssemblyProvider : IDisposable {
 
-    public static Patcher Create(string modulePath, byte[] moduleBytes) {
+    public static AssemblyProvider Create(string modulePath, byte[] moduleBytes) {
         if (Path.GetExtension(modulePath).Equals(".exe")) {
-            return new WindowsPatcher(modulePath);
+            return new WindowsAssemblyProvider(modulePath);
         }
 
         if (ELFReader.TryLoad(new MemoryStream(moduleBytes), true, out ELF<ulong> elf)) {
-            return new LinuxPatcher(elf);
+            return new LinuxAssemblyProvider(elf);
         }
 
         if (MachOHelper.ReadFatMachO(moduleBytes, out var binaries)) {
-            return new MacosPatcher(binaries);
+            return new MacosAssemblyProvider(binaries);
         }
 
         throw new ArgumentException("Unknown Executable file provided.");
@@ -37,14 +37,14 @@ public interface Patcher : IDisposable {
 
 }
 
-public sealed class WindowsPatcher : Patcher {
+public sealed class WindowsAssemblyProvider : AssemblyProvider {
 
     private readonly PEFile        pe;
     private readonly PdbFileReader pdb;
 
     private readonly PESection text;
 
-    public WindowsPatcher(string modulePath) {
+    public WindowsAssemblyProvider(string modulePath) {
         if (Path.GetExtension(modulePath) is not ".exe")
             throw new ArgumentException($"{Path.GetFileName(modulePath)} does not end in .exe");
 
@@ -82,13 +82,13 @@ public sealed class WindowsPatcher : Patcher {
 
 }
 
-public sealed class LinuxPatcher : Patcher {
+public sealed class LinuxAssemblyProvider : AssemblyProvider {
 
     private readonly ELF<ulong>         elf;
     private readonly int                symOffset;
     private readonly SymbolTable<ulong> symTable;
 
-    public LinuxPatcher(ELF<ulong> elf) {
+    public LinuxAssemblyProvider(ELF<ulong> elf) {
         this.elf = elf;
 
         var text = (ProgBitsSection<ulong>)elf.GetSection(".text");
@@ -120,11 +120,11 @@ public sealed class LinuxPatcher : Patcher {
 
 }
 
-public sealed class MacosPatcher : Patcher {
+public sealed class MacosAssemblyProvider : AssemblyProvider {
 
     private Dictionary<Architecture, MachOWithOffset> machoBinaries;
 
-    public MacosPatcher(IReadOnlyList<MachOWithOffset> machoBinaries) {
+    public MacosAssemblyProvider(IReadOnlyList<MachOWithOffset> machoBinaries) {
         this.machoBinaries = machoBinaries.ToDictionary(GetArchitecture);
     }
 
