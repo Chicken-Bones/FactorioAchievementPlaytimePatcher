@@ -16,6 +16,14 @@ namespace FactorioAchievementPatcher
 			Replacement.CopyTo(fnBytes);
 			return true;
 		}
+
+		internal bool IsPatched(Span<byte> fnBytes) {
+			return fnBytes[Offset..].StartsWith(Replacement);
+		}
+
+		internal int Find(Span<byte> fnBytes) {
+			return fnBytes.IndexOf(Target);
+		}
 	}
 
 	public static class Patches

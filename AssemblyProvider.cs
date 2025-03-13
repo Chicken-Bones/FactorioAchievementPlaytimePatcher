@@ -34,7 +34,7 @@ public interface AssemblyProvider : IDisposable {
 
     IEnumerable<Architecture> Architectures();
 
-    Range FunctionFileRange(Architecture arch, string fName);
+    Range? FunctionFileRange(Architecture arch, string fName);
 
     public virtual void FinalizePatches(string filePath) {
     }
@@ -72,10 +72,12 @@ public sealed class WindowsAssemblyProvider : AssemblyProvider {
         };
     }
 
-    public Range FunctionFileRange(Architecture arch, string fName) {
+    public Range? FunctionFileRange(Architecture arch, string fName) {
         Debug.Assert(Architectures().Contains(arch), "Tried to patch for unknown architecture.");
 
-        var func = pdb.Functions.Single(e => e.Name.Equals(fName));
+        var func = pdb.Functions.SingleOrDefault(e => e.Name.Equals(fName));
+        if (func == null) return null;
+        
         var fnOffset = (int)pe.RvaToFileOffset(func.Offset + text.Rva);
         return new Range(fnOffset, fnOffset + (int)func.CodeSize);
     }
@@ -110,10 +112,12 @@ public sealed class LinuxAssemblyProvider : AssemblyProvider {
         };
     }
 
-    public Range FunctionFileRange(Architecture arch, string fName) {
+    public Range? FunctionFileRange(Architecture arch, string fName) {
         Debug.Assert(Architectures().Contains(arch), "Tried to patch for unknown architecture.");
 
-        var func = symTable.Entries.Single(e => e.Name.Equals(fName));
+        var func = symTable.Entries.SingleOrDefault(e => e.Name.Equals(fName));
+        if (func == null) return null;
+        
         var fnOffset = (int)func.Value + symOffset;
         return new Range(fnOffset, fnOffset + (int)func.Size);
     }
@@ -141,13 +145,15 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
         return binaries.Keys;
     }
 
-    public Range FunctionFileRange(Architecture arch, string fName) {
+    public Range? FunctionFileRange(Architecture arch, string fName) {
         var macho = binaries[arch];
 
         var sections = macho.LoadCommands.OfType<SegmentCommand64>().SelectMany(e => e.Sections).ToList();
         var symTab = macho.LoadCommands.OfType<SymTabCommand>().Single();
 
-        var sym = symTab.Symbols.First(e => fName.Equals(e.Name));
+        var sym = symTab.Symbols.FirstOrDefault(e => fName.Equals(e.Name));
+        if (sym == null) return null;
+        
         var section = sections[(int)sym.SectionIndex!];
         var funcSectionOffset = sym.Value - section.Address;
         int fnOffset = (int)(funcSectionOffset + section.Offset + (ulong)macho.FileOffset);
