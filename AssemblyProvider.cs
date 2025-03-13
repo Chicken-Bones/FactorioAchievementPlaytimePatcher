@@ -240,29 +240,30 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
 
     private static Signer? FindSignerProgram() {
         // Prefer quill if available, even on mac, as it has prettier output.
-        if (DoesProgramExist("quill", "sign --help")) {
+        if (DoesProgramExist("quill", "sign --help", p => p.ExitCode == 0)) {
             return Signer.Quill;
         }
         
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && DoesProgramExist("codesign")) {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && DoesProgramExist("codesign", "--help", p=> p.StandardError.ReadToEnd().Contains("Usage: codesign"))) {
             return Signer.CodeSign;
         }
 
         return null;
     }
 
-    private static bool DoesProgramExist(string name, string args = "") {
+    private static bool DoesProgramExist(string name, string args, Predicate<Process> pred) {
         try {
             ProcessStartInfo start = new ProcessStartInfo {
                 FileName = name,
                 Arguments = args,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
+                RedirectStandardError = true,
             };
             using var proc = Process.Start(start);
             if (proc != null) {
                 proc.WaitForExit();
-                return proc.ExitCode == 0;
+                return pred.Invoke(proc);
             }
         } catch (Exception) {
         }
