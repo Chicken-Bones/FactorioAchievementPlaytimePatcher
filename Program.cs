@@ -1,12 +1,17 @@
-﻿using FactorioAchievementPatcher;
+using FactorioAchievementPatcher;
 
 try {
 	if (args.Length <= 0)
-		throw new ArgumentException($"Usage: <path to factorio.exe or map.zip");
+		throw new ArgumentException($"Usage: <path to factorio.exe or map.zip> [<path to output>]");
 
 	var modulePath = args[0];
 	if (!File.Exists(modulePath))
 		throw new ArgumentException($"File not found: {modulePath}");
+	
+	var outPath = modulePath;
+	if (args.Length > 1) {
+		outPath = args[1];
+	}
 
 	var moduleBytes = File.ReadAllBytes(modulePath);
 
@@ -31,12 +36,12 @@ try {
 	}
 
 	if (applied)
-		File.WriteAllBytes(modulePath, moduleBytes);
+		File.WriteAllBytes(outPath, moduleBytes);
 
 	Console.WriteLine("Done");
 }
 catch (ArgumentException ex) {
-	Console.Error.WriteLine(ex);
+	Console.Error.WriteLine(ex.Message);
 }
 catch (Exception ex) {
 	Console.Error.WriteLine(ex);
