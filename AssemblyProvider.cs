@@ -36,6 +36,13 @@ public interface AssemblyProvider : IDisposable {
 
     Range FunctionFileRange(Architecture arch, string fName);
 
+    public virtual bool PreCheck() {
+        return true;
+    }
+
+    public virtual void FinalizePatches(string filePath) {
+    }
+
 }
 
 public sealed class WindowsAssemblyProvider : AssemblyProvider {
@@ -124,9 +131,12 @@ public sealed class LinuxAssemblyProvider : AssemblyProvider {
 public sealed class MacosAssemblyProvider : AssemblyProvider {
 
     private Dictionary<Architecture, MachO64> binaries;
+    private Signer?                           _signer;
+
 
     public MacosAssemblyProvider(MachOFat fat) {
         this.binaries = fat.Arches.ToDictionary(GetArchitecture, e => e.macho);
+        _signer = FindSignerProgram();
     }
 
     public OSPlatform Platform => OSPlatform.OSX;
@@ -157,6 +167,107 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
             CpuType.Arm64 => Architecture.Arm64,
             _ => throw new ArgumentException($"Unknown MachO architecture type. {Enum.GetName(typeof(CpuType), arch.macho.CpuType)}")
         };
+    }
+    
+    
+    public bool PreCheck() {
+        if (_signer == null) {
+            Console.WriteLine("[Error]: Unable to ad-hoc sign macos executable on this system.");
+            Console.WriteLine("         \"codesign\" form the Xcode command line tools, or Quill(https://github.com/anchore/quill)");
+            Console.WriteLine("         is required to be available on PATH to patch macOS binaries.");
+            return false;
+        }
+
+        Console.WriteLine($"Executable will be signed using {_signer} after patching.");
+        return true;
+    }
+
+    public void FinalizePatches(string filePath) {
+        Console.WriteLine($"Using {_signer} to perform an ad-hoc sign on the patched executable.");
+        switch (_signer) {
+            case Signer.CodeSign:
+                SignWithCodeSign(filePath);
+                break;
+            case Signer.Quill:
+                SignWithQuill(filePath);
+                break;
+        }
+    }
+
+    enum Signer {
+
+        CodeSign,
+        Quill
+
+    }
+
+    private static void SignWithCodeSign(string filePath) {
+        using var strip = Process.Start(new ProcessStartInfo {
+            FileName = "codesign",
+            Arguments = "--remove-sginature " + Path.GetFullPath(filePath),
+            UseShellExecute = false,
+            RedirectStandardError = false,
+            RedirectStandardOutput = false,
+        });
+        if (strip == null) throw new Exception("Failed to start codesign process.");
+        strip.WaitForExit();
+        if (strip.ExitCode != 0) throw new Exception("Process did not exit with status code 0. Got: " + strip.ExitCode);
+
+        using var sign = Process.Start(new ProcessStartInfo {
+            FileName = "codesign",
+            Arguments = "--force --deep --sign - " + Path.GetFullPath(filePath),
+            UseShellExecute = false,
+            RedirectStandardError = false,
+            RedirectStandardOutput = false,
+        });
+        if (sign == null) throw new Exception("Failed to start codesign process.");
+        sign.WaitForExit();
+        if (sign.ExitCode != 0) throw new Exception("Process did not exit with status code 0. Got: " + sign.ExitCode);
+    }
+
+    private static void SignWithQuill(string filePath) {
+        using var strip = Process.Start(new ProcessStartInfo {
+            FileName = "quill",
+            Arguments = "sign " + Path.GetFullPath(filePath),
+            UseShellExecute = false,
+            RedirectStandardError = false,
+            RedirectStandardOutput = false,
+        });
+        if (strip == null) throw new Exception("Failed to start codesign process.");
+        strip.WaitForExit();
+        if (strip.ExitCode != 0) throw new Exception("Process did not exit with status code 0. Got: " + strip.ExitCode);
+    }
+
+    private static Signer? FindSignerProgram() {
+        // Prefer quill if available, even on mac, as it has prettier output.
+        if (DoesProgramExist("quill", "sign --help")) {
+            return Signer.Quill;
+        }
+        
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && DoesProgramExist("codesign")) {
+            return Signer.CodeSign;
+        }
+
+        return null;
+    }
+
+    private static bool DoesProgramExist(string name, string args = "") {
+        try {
+            ProcessStartInfo start = new ProcessStartInfo {
+                FileName = name,
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+            };
+            using var proc = Process.Start(start);
+            if (proc != null) {
+                proc.WaitForExit();
+                return proc.ExitCode == 0;
+            }
+        } catch (Exception) {
+        }
+
+        return false;
     }
 
 }

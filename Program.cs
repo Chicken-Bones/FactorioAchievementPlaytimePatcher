@@ -1,4 +1,4 @@
-using FactorioAchievementPatcher;
+﻿using FactorioAchievementPatcher;
 
 try {
 	if (args.Length <= 0)
@@ -17,6 +17,9 @@ try {
 
 	bool applied = false;
 	using var provider = AssemblyProvider.Create(modulePath, moduleBytes);
+	if (!provider.PreCheck()) {
+		return 1;
+	}
 
 	var patchSet = Patches.PlatformPatchSets[provider.Platform];
 	foreach (var arch in provider.Architectures()) {
@@ -35,8 +38,10 @@ try {
 		}
 	}
 
-	if (applied)
+	if (applied) {
 		File.WriteAllBytes(outPath, moduleBytes);
+		provider.FinalizePatches(outPath);
+	}
 
 	Console.WriteLine("Done");
 }
@@ -46,3 +51,4 @@ catch (ArgumentException ex) {
 catch (Exception ex) {
 	Console.Error.WriteLine(ex);
 }
+return 0;
