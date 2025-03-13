@@ -204,7 +204,7 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
     private static void SignWithCodeSign(string filePath) {
         using var strip = Process.Start(new ProcessStartInfo {
             FileName = "codesign",
-            Arguments = "--remove-sginature " + Path.GetFullPath(filePath),
+            Arguments = "--remove-signature \"" + Path.GetFullPath(filePath) + "\"",
             UseShellExecute = false,
             RedirectStandardError = false,
             RedirectStandardOutput = false,
@@ -215,7 +215,7 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
 
         using var sign = Process.Start(new ProcessStartInfo {
             FileName = "codesign",
-            Arguments = "--force --deep --sign - " + Path.GetFullPath(filePath),
+            Arguments = "--force --deep --sign - \"" + Path.GetFullPath(filePath) + "\"",
             UseShellExecute = false,
             RedirectStandardError = false,
             RedirectStandardOutput = false,
@@ -228,7 +228,7 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
     private static void SignWithQuill(string filePath) {
         using var strip = Process.Start(new ProcessStartInfo {
             FileName = "quill",
-            Arguments = "sign " + Path.GetFullPath(filePath),
+            Arguments = "sign \"" + Path.GetFullPath(filePath) + "\"",
             UseShellExecute = false,
             RedirectStandardError = false,
             RedirectStandardOutput = false,
