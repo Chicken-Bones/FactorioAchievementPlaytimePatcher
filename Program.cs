@@ -2,12 +2,12 @@
 
 try {
 	if (args.Length <= 0)
-		throw new ArgumentException($"Usage: <path to factorio.exe or map.zip> [<path to output>]");
+		throw new ArgumentException("Usage: <path to factorio.exe> [<path to output>]");
 
 	var modulePath = args[0];
 	if (!File.Exists(modulePath))
 		throw new ArgumentException($"File not found: {modulePath}");
-	
+
 	var outPath = modulePath;
 	if (args.Length > 1) {
 		outPath = args[1];
@@ -17,15 +17,12 @@ try {
 
 	bool applied = false;
 	using var provider = AssemblyProvider.Create(modulePath, moduleBytes);
-	if (!provider.PreCheck()) {
-		return 1;
-	}
 
 	var patchSet = Patches.PlatformPatchSets[provider.Platform];
 	foreach (var arch in provider.Architectures()) {
 		Console.WriteLine($"Processing {provider.Platform} {arch}");
 		var patches = patchSet[arch];
-		
+
 		foreach (var patch in patches) {
 			var fnBytes = moduleBytes.AsSpan(provider.FunctionFileRange(arch, patch.FunctionName));
 			if (patch.Apply(fnBytes)) {
@@ -47,6 +44,12 @@ try {
 }
 catch (ArgumentException ex) {
 	Console.Error.WriteLine(ex.Message);
+}
+catch (SignerNotFoundException) {
+	Console.WriteLine("[Error]: Unable to ad-hoc sign macos executable on this system.");
+	Console.WriteLine("         \"codesign\" from the Xcode command line tools, or Quill(https://github.com/anchore/quill)");
+	Console.WriteLine("         is required on PATH to patch macOS binaries.");
+	return 1;
 }
 catch (Exception ex) {
 	Console.Error.WriteLine(ex);

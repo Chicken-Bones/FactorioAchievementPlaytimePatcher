@@ -36,10 +36,6 @@ public interface AssemblyProvider : IDisposable {
 
     Range FunctionFileRange(Architecture arch, string fName);
 
-    public virtual bool PreCheck() {
-        return true;
-    }
-
     public virtual void FinalizePatches(string filePath) {
     }
 
@@ -47,7 +43,7 @@ public interface AssemblyProvider : IDisposable {
 
 public sealed class WindowsAssemblyProvider : AssemblyProvider {
 
-    private readonly PEFile        pe;
+    private readonly PEFile pe;
     private readonly PdbFileReader pdb;
 
     private readonly PESection text;
@@ -92,8 +88,8 @@ public sealed class WindowsAssemblyProvider : AssemblyProvider {
 
 public sealed class LinuxAssemblyProvider : AssemblyProvider {
 
-    private readonly ELF<ulong>         elf;
-    private readonly int                symOffset;
+    private readonly ELF<ulong> elf;
+    private readonly int symOffset;
     private readonly SymbolTable<ulong> symTable;
 
     public LinuxAssemblyProvider(ELF<ulong> elf) {
@@ -130,13 +126,13 @@ public sealed class LinuxAssemblyProvider : AssemblyProvider {
 
 public sealed class MacosAssemblyProvider : AssemblyProvider {
 
-    private Dictionary<Architecture, MachO64> binaries;
-    private Signer?                           _signer;
+    private readonly Dictionary<Architecture, MachO64> binaries;
+    private readonly Signer signer;
 
 
     public MacosAssemblyProvider(MachOFat fat) {
-        this.binaries = fat.Arches.ToDictionary(GetArchitecture, e => e.macho);
-        _signer = FindSignerProgram();
+        binaries = fat.Arches.ToDictionary(GetArchitecture, e => e.macho);
+        signer = FindSignerProgram();
     }
 
     public OSPlatform Platform => OSPlatform.OSX;
@@ -168,23 +164,10 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
             _ => throw new ArgumentException($"Unknown MachO architecture type. {Enum.GetName(typeof(CpuType), arch.macho.CpuType)}")
         };
     }
-    
-    
-    public bool PreCheck() {
-        if (_signer == null) {
-            Console.WriteLine("[Error]: Unable to ad-hoc sign macos executable on this system.");
-            Console.WriteLine("         \"codesign\" form the Xcode command line tools, or Quill(https://github.com/anchore/quill)");
-            Console.WriteLine("         is required to be available on PATH to patch macOS binaries.");
-            return false;
-        }
-
-        Console.WriteLine($"Executable will be signed using {_signer} after patching.");
-        return true;
-    }
 
     public void FinalizePatches(string filePath) {
-        Console.WriteLine($"Using {_signer} to perform an ad-hoc sign on the patched executable.");
-        switch (_signer) {
+        Console.WriteLine($"Using {signer} to perform an ad-hoc sign on the patched executable.");
+        switch (signer) {
             case Signer.CodeSign:
                 SignWithCodeSign(filePath);
                 break;
@@ -215,10 +198,7 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
 
         using var sign = Process.Start(new ProcessStartInfo {
             FileName = "codesign",
-            Arguments = "--force --deep --sign - \"" + Path.GetFullPath(filePath) + "\"",
-            UseShellExecute = false,
-            RedirectStandardError = false,
-            RedirectStandardOutput = false,
+            Arguments = "--force --deep --sign - \"" + Path.GetFullPath(filePath) + "\""
         });
         if (sign == null) throw new Exception("Failed to start codesign process.");
         sign.WaitForExit();
@@ -228,27 +208,26 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
     private static void SignWithQuill(string filePath) {
         using var strip = Process.Start(new ProcessStartInfo {
             FileName = "quill",
-            Arguments = "sign \"" + Path.GetFullPath(filePath) + "\"",
-            UseShellExecute = false,
-            RedirectStandardError = false,
-            RedirectStandardOutput = false,
+            Arguments = "sign \"" + Path.GetFullPath(filePath) + "\""
         });
-        if (strip == null) throw new Exception("Failed to start codesign process.");
+        if (strip == null) throw new Exception("Failed to start quill process.");
         strip.WaitForExit();
         if (strip.ExitCode != 0) throw new Exception("Process did not exit with status code 0. Got: " + strip.ExitCode);
     }
 
-    private static Signer? FindSignerProgram() {
+    private static Signer FindSignerProgram() {
         // Prefer quill if available, even on mac, as it has prettier output.
         if (DoesProgramExist("quill", "sign --help", p => p.ExitCode == 0)) {
             return Signer.Quill;
         }
-        
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && DoesProgramExist("codesign", "--help", p=> p.StandardError.ReadToEnd().Contains("Usage: codesign"))) {
+
+        // Annoyingly, codesign doesn't have a real help switch, it just prints some vague usage
+        // when the command is wrong. We run it, and check the stderr contains the start of its usage.
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && DoesProgramExist("codesign", "--help", p => p.StandardError.ReadToEnd().Contains("Usage: codesign"))) {
             return Signer.CodeSign;
         }
 
-        return null;
+        throw new SignerNotFoundException();
     }
 
     private static bool DoesProgramExist(string name, string args, Predicate<Process> pred) {
@@ -256,7 +235,6 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
             ProcessStartInfo start = new ProcessStartInfo {
                 FileName = name,
                 Arguments = args,
-                UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             };
@@ -272,3 +250,5 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
     }
 
 }
+
+class SignerNotFoundException : Exception;
