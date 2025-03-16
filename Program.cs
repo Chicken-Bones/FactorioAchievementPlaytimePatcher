@@ -56,7 +56,7 @@ try {
 
 	if (errors) {
 		Console.WriteLine("Errors found, can't continue.");
-		return;
+		return 1;
 	}
 
 	if (applied) {
@@ -65,6 +65,7 @@ try {
 	}
 
 	Console.WriteLine("Done");
+	return 0;
 }
 catch (ArgumentException ex) {
 	Console.Error.WriteLine(ex.Message);
@@ -75,3 +76,4 @@ catch (SignerNotFoundException ex) {
 catch (Exception ex) {
 	Console.Error.WriteLine(ex);
 }
+return 1;
