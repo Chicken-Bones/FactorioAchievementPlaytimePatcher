@@ -1,38 +1,30 @@
 ﻿using FactorioAchievementPatcher;
-using System.Runtime.InteropServices;
-using AsmResolver.PE.File;
-using ELFSharp.ELF;
-using ELFSharp.ELF.Sections;
-using SharpPdb.Native;
 
 try {
 	if (args.Length <= 0)
-		throw new ArgumentException($"Usage: <path to factorio.exe or map.zip");
+		throw new ArgumentException("Usage: <path to factorio.exe> [<path to output>]");
 
 	var modulePath = args[0];
 	if (!File.Exists(modulePath))
 		throw new ArgumentException($"File not found: {modulePath}");
 
+	var outPath = modulePath;
+	if (args.Length > 1) {
+		outPath = args[1];
+	}
+
 	var moduleBytes = File.ReadAllBytes(modulePath);
 
 	bool applied = false;
-	if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
-		if (Path.GetExtension(modulePath) is not ".exe")
-			throw new ArgumentException($"{Path.GetFileName(modulePath)} does not end in .exe");
+	using var provider = AssemblyProvider.Create(modulePath, moduleBytes);
 
-		var pdbPath = Path.Combine(Path.GetDirectoryName(modulePath)!, Path.GetFileNameWithoutExtension(modulePath) + ".pdb");
-		if (!File.Exists(pdbPath)) 
-			throw new ArgumentException($"{Path.GetFileName(modulePath)} does not have a companion .pdb file.");
+	var patchSet = Patches.PlatformPatchSets[provider.Platform];
+	foreach (var arch in provider.Architectures()) {
+		Console.WriteLine($"Processing {provider.Platform} {arch}");
+		var patches = patchSet[arch];
 
-		var pe = PEFile.FromFile(modulePath);
-		var pdb = new PdbFileReader(pdbPath);
-
-		var text = pe.Sections.Single(e => e.Name.Equals(".text"));
-
-		foreach (var patch in Patches.Windows) {
-			var func = pdb.Functions.Single(e => e.Name.Equals(patch.FunctionName));
-			var fnOffset = pe.RvaToFileOffset(func.Offset + text.Rva);
-			var fnBytes = moduleBytes.AsSpan((int)fnOffset, (int)func.CodeSize);
+		foreach (var patch in patches) {
+			var fnBytes = moduleBytes.AsSpan(provider.FunctionFileRange(arch, patch.FunctionName));
 			if (patch.Apply(fnBytes)) {
 				Console.WriteLine($"Patched {patch.FunctionName}");
 				applied = true;
@@ -42,39 +34,19 @@ try {
 			}
 		}
 	}
-	else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
-		ELF<ulong> elf;
-		if (!ELFReader.TryLoad(new MemoryStream(moduleBytes), true, out elf)) {
-			throw new ArgumentException($"{Path.GetFileName(modulePath)} is not a linux executable.");
-		}
 
-		var text = (ProgBitsSection<ulong>) elf.GetSection(".text");
-		var symOffset = text.Offset - text.LoadAddress;
-
-		var sym = (SymbolTable<ulong>) elf.GetSection(".symtab");
-
-		foreach (var patch in Patches.Linux) {
-			var func = sym.Entries.Single(e => e.Name.Equals(patch.FunctionName));
-			var fnBytes = moduleBytes.AsSpan((int)(func.Value + symOffset), (int)func.Size);
-			if (patch.Apply(fnBytes)) {
-				Console.WriteLine($"Patched {patch.FunctionName}");
-				applied = true;
-			} else {
-				Console.WriteLine($"Already patched {patch.FunctionName}");
-			}
-		}
+	if (applied) {
+		File.WriteAllBytes(outPath, moduleBytes);
+		provider.FinalizePatches(outPath);
 	}
-	else {
-		throw new NotSupportedException($"Unsupported platform: {RuntimeInformation.OSDescription}");
-	}
-
-	if (applied)
-		File.WriteAllBytes(modulePath, moduleBytes);
 
 	Console.WriteLine("Done");
 }
 catch (ArgumentException ex) {
 	Console.Error.WriteLine(ex.Message);
+}
+catch (SignerNotFoundException ex) {
+	Console.WriteLine(ex.Message);
 }
 catch (Exception ex) {
 	Console.Error.WriteLine(ex);
