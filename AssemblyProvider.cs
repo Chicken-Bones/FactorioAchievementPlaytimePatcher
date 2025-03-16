@@ -227,7 +227,13 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
             return Signer.CodeSign;
         }
 
-        throw new SignerNotFoundException();
+        throw new SignerNotFoundException(
+            $"""
+             [Error]: Unable to ad-hoc sign macos executable on this system.{Environment.NewLine}
+                      "codesign" from the Xcode command line tools, or Quill(https://github.com/anchore/quill){Environment.NewLine}
+                       is required on PATH to patch macOS binaries.         
+             """
+        );
     }
 
     private static bool DoesProgramExist(string name, string args, Predicate<Process> pred) {
@@ -251,4 +257,4 @@ public sealed class MacosAssemblyProvider : AssemblyProvider {
 
 }
 
-class SignerNotFoundException : Exception;
+class SignerNotFoundException(string message) : Exception(message);

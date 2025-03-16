@@ -45,13 +45,9 @@ try {
 catch (ArgumentException ex) {
 	Console.Error.WriteLine(ex.Message);
 }
-catch (SignerNotFoundException) {
-	Console.WriteLine("[Error]: Unable to ad-hoc sign macos executable on this system.");
-	Console.WriteLine("         \"codesign\" from the Xcode command line tools, or Quill(https://github.com/anchore/quill)");
-	Console.WriteLine("         is required on PATH to patch macOS binaries.");
-	return 1;
+catch (SignerNotFoundException ex) {
+	Console.WriteLine(ex.Message);
 }
 catch (Exception ex) {
 	Console.Error.WriteLine(ex);
 }
-return 0;
