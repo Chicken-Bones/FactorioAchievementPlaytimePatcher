@@ -1,4 +1,4 @@
-﻿using FactorioAchievementPatcher;
+using FactorioAchievementPatcher;
 
 try {
 	if (args.Length <= 0)
@@ -18,21 +18,45 @@ try {
 	bool applied = false;
 	using var provider = AssemblyProvider.Create(modulePath, moduleBytes);
 
+	var errors = false;
 	var patchSet = Patches.PlatformPatchSets[provider.Platform];
 	foreach (var arch in provider.Architectures()) {
 		Console.WriteLine($"Processing {provider.Platform} {arch}");
 		var patches = patchSet[arch];
 
 		foreach (var patch in patches) {
-			var fnBytes = moduleBytes.AsSpan(provider.FunctionFileRange(arch, patch.FunctionName));
-			if (patch.Apply(fnBytes)) {
-				Console.WriteLine($"Patched {patch.FunctionName}");
-				applied = true;
+			var funcRange = provider.FunctionFileRange(arch, patch.FunctionName);
+			if (funcRange == null) {
+				Console.WriteLine($"Unable to patch {patch.FunctionName}, function doesn't exist.");
+				errors = true;
+				continue;
 			}
-			else {
-				Console.WriteLine($"Already patched {patch.FunctionName}");
+
+			var fnBytes = moduleBytes.AsSpan(funcRange.Value);
+			try {
+				if (patch.Apply(fnBytes)) {
+					Console.WriteLine($"Patched {patch.FunctionName}");
+					applied = true;
+				}
+				else {
+					Console.WriteLine($"Already patched {patch.FunctionName}");
+				}
+			}
+			catch (PatchTargetMissingException) {
+				errors = true;
+				var foundOffset = patch.Find(fnBytes);
+				if (foundOffset == -1) {
+					Console.WriteLine($"Patch for {patch.FunctionName} invalid, target doesn't exist."); 
+				} else {
+					Console.WriteLine($"Patch for {patch.FunctionName} found at different offset. Old: 0x{patch.Offset:X} New: 0x{foundOffset:X}");
+				}
 			}
 		}
+	}
+
+	if (errors) {
+		Console.WriteLine("Errors found, can't continue.");
+		return 1;
 	}
 
 	if (applied) {
@@ -41,6 +65,7 @@ try {
 	}
 
 	Console.WriteLine("Done");
+	return 0;
 }
 catch (ArgumentException ex) {
 	Console.Error.WriteLine(ex.Message);
@@ -51,3 +76,4 @@ catch (SignerNotFoundException ex) {
 catch (Exception ex) {
 	Console.Error.WriteLine(ex);
 }
+return 1;

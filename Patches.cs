@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace FactorioAchievementPatcher
 {
@@ -11,10 +11,14 @@ namespace FactorioAchievementPatcher
 				return false;
 
 			if (!fnBytes.StartsWith(Target))
-				throw new Exception($"Failed to apply patch ({FunctionName}): Target not found at Offset");
+				throw new PatchTargetMissingException($"Failed to apply patch ({FunctionName}): Target not found at Offset");
 
 			Replacement.CopyTo(fnBytes);
 			return true;
+		}
+
+		internal int Find(Span<byte> fnBytes) {
+			return fnBytes.IndexOf(Target);
 		}
 	}
 
@@ -173,4 +177,6 @@ namespace FactorioAchievementPatcher
 			},
 		};
 	}
+
+	class PatchTargetMissingException(string message) : Exception(message);
 }
