@@ -1,8 +1,9 @@
+using System.Reflection;
 using FactorioAchievementPatcher;
 
 try {
 	if (args.Length <= 0)
-		throw new ArgumentException("Usage: <path to factorio.exe> [<path to output>]");
+		throw new ArgumentException($"FactorioAchievementPlaytimePatcher {Assembly.GetExecutingAssembly().GetName().Version} Usage: <path to factorio.exe> [<path to output>]");
 
 	var modulePath = args[0];
 	if (!File.Exists(modulePath))
