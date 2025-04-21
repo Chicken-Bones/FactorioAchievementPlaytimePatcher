@@ -4,7 +4,9 @@
 
 Patches the Factorio executable to remove the **50% playtime requirement** for earning achievements. This allows you to unlock achievements even if you've spent less than half your playtime in a single save.
 
-![enter image description here](https://preview.redd.it/looking-for-a-mod-that-bypasses-the-50-playtime-requirement-v0-9hj17ocgfzbc1.png?width=606&format=png&auto=webp&s=5efa144eb69974946deda2d3f1d5785abe6a2bc4)
+**You will need to re-patch each time Factorio updates**
+
+![Achivement restriction](https://preview.redd.it/looking-for-a-mod-that-bypasses-the-50-playtime-requirement-v0-9hj17ocgfzbc1.png?width=606&format=png&auto=webp&s=5efa144eb69974946deda2d3f1d5785abe6a2bc4)
 
 ## 🖥️ Platform Compatibility
 -   ✅ Windows x64
@@ -31,6 +33,10 @@ Example:
 ```bash
 FactorioAchievementPlaytimePatcher.exe "C:\Program Files (x86)\Steam\steamapps\common\Factorio\bin\x64\factorio.exe"
 ```
+
+or drag-n-drop on Windows
+
+![Drag n Drop](https://i.imgur.com/fPHMklH.gif)
 
 ### Option 2: Run from source with .NET
 
