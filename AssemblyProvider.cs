@@ -24,7 +24,7 @@ public interface AssemblyProvider : IDisposable {
         }
 
         if (MachOReader.TryLoadFat(new MemoryStream(moduleBytes), out var fat, false)) {
-            return new MacosAssemblyProvider(fat);
+            return new MacosAssemblyProvider(fat!);
         }
 
         throw new ArgumentException("Unknown Executable file provided.");
