@@ -6,8 +6,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PublishAot>true</PublishAot>
   </PropertyGroup>
+
+	<PropertyGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
+		<PublishAot>true</PublishAot>
+	</PropertyGroup>
+	<PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
+		<PublishSingleFile>true</PublishSingleFile>
+		<PublishTrimmed>true</PublishTrimmed>
+	</PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AsmResolver.PE.File" Version="5.5.1" />
